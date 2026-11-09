@@ -12,7 +12,8 @@ $ErrorActionPreference = 'Stop'
 $root = 'C:\BuildHost\meshagent'; $src = "$root\src\$Commit"; $out = "$root\out\$Commit"
 New-Item -ItemType Directory -Force "$root\src", $out | Out-Null
 $zip = "$root\src\$Commit.zip"
-Invoke-WebRequest -UseBasicParsing "https://github.com/$Repo/archive/$Commit.zip" -OutFile $zip
+# curl.exe, not Invoke-WebRequest: PS 5.1 IWR stalls on large downloads on this host
+& curl.exe -sSfL --retry 3 -o $zip "https://github.com/$Repo/archive/$Commit.zip"; if ($LASTEXITCODE -ne 0) { throw "download failed ($LASTEXITCODE)" }
 "source zip sha256=$((Get-FileHash $zip).Hash)" | Tee-Object "$out\build.log"
 if (Test-Path $src) { Remove-Item -Recurse -Force $src }
 Expand-Archive $zip "$root\src\x-$Commit" -Force

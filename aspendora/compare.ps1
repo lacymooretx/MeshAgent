@@ -24,7 +24,7 @@ function Info($f) {
 }
 foreach ($n in $pins.Keys | Sort-Object) {
   $u = "$up\$n"
-  if (-not (Test-Path $u)) { Invoke-WebRequest -UseBasicParsing "https://github.com/Ylianst/MeshAgent/releases/download/legacy-1.2.6/$n" -OutFile $u }
+  if (-not (Test-Path $u)) { & curl.exe -sSfL --retry 3 -o $u "https://github.com/Ylianst/MeshAgent/releases/download/legacy-1.2.6/$n"; if ($LASTEXITCODE -ne 0) { throw "download $n failed" } }
   $h = (Get-FileHash $u -Algorithm SHA384).Hash.ToLower()
   "== $n  upstream sha384 pin " + $(if ($h -eq $pins[$n]) { 'MATCH' } else { "MISMATCH $h" })
   $a = Info $u; $b = Info "$ours\$n"
