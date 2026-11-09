@@ -12,7 +12,9 @@ $sig = Get-AuthenticodeSignature $bt
 if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw "vs_BuildTools.exe signature: $($sig.Status) $($sig.SignerCertificate.Subject)" }
 # ATLMFC: MeshService.rc includes afxres.h
 $add = @('Microsoft.VisualStudio.Workload.VCTools','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','Microsoft.VisualStudio.Component.VC.Tools.ARM64',
-         'Microsoft.VisualStudio.Component.Windows11SDK.22621','Microsoft.VisualStudio.Component.VC.ATLMFC','Microsoft.VisualStudio.Component.VC.MFC.ARM64')
+         'Microsoft.VisualStudio.Component.Windows11SDK.22621','Microsoft.VisualStudio.Component.VC.ATLMFC','Microsoft.VisualStudio.Component.VC.MFC.ARM64',
+         # Release|Win32 (MeshService.exe) is pinned to toolset v142 in MeshService-2022.vcxproj; keep upstream's toolchain
+         'Microsoft.VisualStudio.ComponentGroup.VC.Tools.142.x86.x64','Microsoft.VisualStudio.Component.VC.v142.ATL','Microsoft.VisualStudio.Component.VC.v142.MFC')
 $vsw = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $existing = if (Test-Path $vsw) { & $vsw -products * -property installationPath | Select-Object -First 1 }
 $args = @()
