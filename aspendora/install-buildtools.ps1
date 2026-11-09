@@ -14,7 +14,7 @@ if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Micr
 $add = @('Microsoft.VisualStudio.Workload.VCTools','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','Microsoft.VisualStudio.Component.VC.Tools.ARM64',
          'Microsoft.VisualStudio.Component.Windows11SDK.22621','Microsoft.VisualStudio.Component.VC.ATLMFC','Microsoft.VisualStudio.Component.VC.MFC.ARM64',
          # Release|Win32 (MeshService.exe) is pinned to toolset v142 in MeshService-2022.vcxproj; keep upstream's toolchain
-         'Microsoft.VisualStudio.ComponentGroup.VC.Tools.142.x86.x64','Microsoft.VisualStudio.Component.VC.v142.ATL','Microsoft.VisualStudio.Component.VC.v142.MFC')
+         'Microsoft.VisualStudio.ComponentGroup.VC.Tools.142.x86.x64','Microsoft.VisualStudio.Component.VC.14.29.16.11.ATL','Microsoft.VisualStudio.Component.VC.14.29.16.11.MFC')
 $vsw = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $existing = if (Test-Path $vsw) { & $vsw -products * -property installationPath | Select-Object -First 1 }
 $args = @()
@@ -26,3 +26,5 @@ $p = Start-Process $bt -ArgumentList $args -Wait -PassThru
 & $vsw -products * -property catalog_productDisplayVersion
 Test-Path "${env:ProgramFiles(x86)}\Windows Kits\10\Include\10.0.22621.0"
 Test-Path ((& $vsw -products * -property installationPath) + "\VC\Tools\MSVC\*\atlmfc\include\afxres.h")
+# vs_BuildTools ignores unknown component ids with exit 0, so check the files we need:
+Get-ChildItem ((& $vsw -products * -property installationPath) + "\VC\Tools\MSVC") | ForEach-Object { "$($_.Name) afxres.h=" + (Test-Path "$($_.FullName)\atlmfc\include\afxres.h") }
