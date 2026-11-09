@@ -10,14 +10,17 @@ $bt = "$root\dl\vs_BuildTools.exe"
 Invoke-WebRequest -UseBasicParsing 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -OutFile $bt
 $sig = Get-AuthenticodeSignature $bt
 if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw "vs_BuildTools.exe signature: $($sig.Status) $($sig.SignerCertificate.Subject)" }
-$args = @('--quiet','--wait','--norestart','--nocache',
-  '--add','Microsoft.VisualStudio.Workload.VCTools',
-  '--add','Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
-  '--add','Microsoft.VisualStudio.Component.VC.Tools.ARM64',
-  '--add','Microsoft.VisualStudio.Component.Windows11SDK.22621')
+# ATLMFC: MeshService.rc includes afxres.h
+$add = @('Microsoft.VisualStudio.Workload.VCTools','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','Microsoft.VisualStudio.Component.VC.Tools.ARM64',
+         'Microsoft.VisualStudio.Component.Windows11SDK.22621','Microsoft.VisualStudio.Component.VC.ATLMFC','Microsoft.VisualStudio.Component.VC.MFC.ARM64')
+$vsw = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$existing = if (Test-Path $vsw) { & $vsw -products * -property installationPath | Select-Object -First 1 }
+$args = @()
+if ($existing) { $args += @('modify','--installPath',"`"$existing`"") }   # already installed: add what's missing
+$args += @('--quiet','--wait','--norestart','--nocache'); foreach ($a in $add) { $args += @('--add',$a) }
 $p = Start-Process $bt -ArgumentList $args -Wait -PassThru
 "vs_BuildTools exit=$($p.ExitCode)"   # 0 ok, 3010 ok (reboot wanted)
-$vsw = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 & $vsw -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 & $vsw -products * -property catalog_productDisplayVersion
 Test-Path "${env:ProgramFiles(x86)}\Windows Kits\10\Include\10.0.22621.0"
+Test-Path ((& $vsw -products * -property installationPath) + "\VC\Tools\MSVC\*\atlmfc\include\afxres.h")
