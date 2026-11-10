@@ -1,5 +1,6 @@
 # Builds MeshService.exe / MeshService64.exe / MeshServiceARM64.exe from a pinned commit of this fork.
 # Usage (build host, as SYSTEM/admin): build.ps1 -Commit <40-char sha> -CommitDate '<yyyy-Mon-dd HH:mm:ss+zzzz>' [-Repo lacymooretx/MeshAgent]
+#   [-OpenSSL C:\BuildHost\openssl\1.1.1w]  link our OpenSSL build (build-openssl.ps1) instead of the committed prebuilt libs
 # The build host has no git, so the upstream pre-build step (git log -> ILibDuktape_Commit.h + prebuild.ps1) exits early
 # and would leave a stale committed header. We write the header from -Commit/-CommitDate (get them with
 #   gh api repos/lacymooretx/MeshAgent/commits/<sha> -q .commit.committer.date) and run prebuild.ps1 ourselves.
@@ -7,7 +8,8 @@
 # Output: C:\BuildHost\meshagent\out\<sha>\{MeshService.exe,MeshService64.exe,MeshServiceARM64.exe,SHA256SUMS.txt,build.log}
 param([Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$Commit,
       [Parameter(Mandatory)][ValidatePattern('^\d{4}-[A-Z][a-z]{2}-\d{2} \d{2}:\d{2}:\d{2}[+-]\d{4}$')][string]$CommitDate,
-      [string]$Repo = 'lacymooretx/MeshAgent')
+      [string]$Repo = 'lacymooretx/MeshAgent',
+      [string]$OpenSSL = '')   # e.g. C:\BuildHost\openssl\1.1.1w (from build-openssl.ps1); empty = committed prebuilt libs
 $ErrorActionPreference = 'Stop'
 $root = 'C:\BuildHost\meshagent'; $src = "$root\src\$Commit"; $out = "$root\out\$Commit"
 New-Item -ItemType Directory -Force "$root\src", $out | Out-Null
@@ -26,7 +28,16 @@ $vsw = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $msb = & $vsw -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
 "msbuild=$msb" | Tee-Object -Append "$out\build.log"
 $map = @{ 'x86' = 'MeshService.exe'; 'x64' = 'MeshService64.exe'; 'ARM64' = 'MeshServiceARM64.exe' }
+$libName = @{ 'x64' = '64MT'; 'x86' = '32MT'; 'ARM64' = 'ARM64' }
 foreach ($plat in 'x64','x86','ARM64') {
+  if ($OpenSSL) {
+    # Swap in our OpenSSL build for this arch: libs under the names the vcxproj links, and the matching per-arch headers.
+    $o = "$OpenSSL\$plat"; if (-not (Test-Path "$o\libcrypto.lib")) { throw "no OpenSSL build at $o" }
+    Copy-Item "$o\libcrypto.lib" "$src\openssl\libstatic\libcrypto$($libName[$plat]).lib" -Force
+    Copy-Item "$o\libssl.lib" "$src\openssl\libstatic\libssl$($libName[$plat]).lib" -Force
+    Remove-Item -Recurse -Force "$src\openssl\include\openssl"; Copy-Item -Recurse "$o\include\openssl" "$src\openssl\include\openssl"
+    "openssl $plat from $o crypto=$((Get-FileHash "$o\libcrypto.lib").Hash) ssl=$((Get-FileHash "$o\libssl.lib").Hash)" | Tee-Object -Append "$out\build.log"
+  }
   & $msb "$src\MeshAgent-2022.sln" /t:MeshService-2022 /p:Configuration=Release /p:Platform=$plat /p:PostBuildEventUseInBuild=false /m /nologo /v:minimal 2>&1 | Tee-Object -Append "$out\build.log" | Select-Object -Last 3
   if ($LASTEXITCODE -ne 0) { throw "build $plat failed ($LASTEXITCODE), see $out\build.log" }
 }
